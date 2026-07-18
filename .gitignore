@@ -1,0 +1,12 @@
+.godot/
+out/
+godot
+verify/
+playbooks/
+.gogi-cache/
+*.tmp
+_*.gd.uid
+models/dl/
+models/__pycache__/
+models/*.py
+models/*.mjs

@@ -1,0 +1,176 @@
+{
+ "quests": [
+  {
+   "id": "q1_land",
+   "name": "Stage 1: Landfall",
+   "steps": [
+    {
+     "objective": {
+      "type": "reach_area",
+      "target": "c-3_17"
+     },
+     "desc": "Reach the expedition camp on the beach"
+    }
+   ],
+   "rewards": {
+    "xp": 40,
+    "gold": 20
+   }
+  },
+  {
+   "id": "q2_wall",
+   "name": "Stage 2: The Great Wall",
+   "steps": [
+    {
+     "objective": {
+      "type": "kill_count",
+      "target": "tribe_warrior",
+      "count": 4
+     },
+     "desc": "Drive off the wall guardians"
+    },
+    {
+     "objective": {
+      "type": "collect",
+      "target": "gate_key"
+     },
+     "desc": "Find the Gate Key (the shipwreck...)"
+    }
+   ],
+   "rewards": {
+    "xp": 80,
+    "gold": 40
+   }
+  },
+  {
+   "id": "q3_gorge",
+   "name": "Stage 3: The Gorge",
+   "steps": [
+    {
+     "objective": {
+      "type": "reach_area",
+      "target": "c0_10"
+     },
+     "desc": "Cross the rope bridge over the gorge"
+    }
+   ],
+   "rewards": {
+    "xp": 60,
+    "gold": 20
+   }
+  },
+  {
+   "id": "q4_pits",
+   "name": "Stage 4: The Insect Pit",
+   "steps": [
+    {
+     "objective": {
+      "type": "kill_count",
+      "target": "giant_spider",
+      "count": 3
+     },
+     "desc": "Survive the pit of giant insects"
+    }
+   ],
+   "rewards": {
+    "xp": 90,
+    "gold": 30
+   }
+  },
+  {
+   "id": "q5_jungle",
+   "name": "Stage 5: Jungle and Swamp",
+   "steps": [
+    {
+     "objective": {
+      "type": "kill_count",
+      "target": "raptor",
+      "count": 4
+     },
+     "desc": "Fight through the raptor packs"
+    },
+    {
+     "objective": {
+      "type": "kill_count",
+      "target": "croc",
+      "count": 1
+     },
+     "desc": "Slay the swamp crocodile"
+    }
+   ],
+   "rewards": {
+    "xp": 120,
+    "gold": 40
+   }
+  },
+  {
+   "id": "q6_horn",
+   "name": "Stage 6: The Horn of Kong",
+   "steps": [
+    {
+     "objective": {
+      "type": "collect",
+      "target": "lair_horn"
+     },
+     "desc": "Take the Lair Horn from the temple ruins"
+    }
+   ],
+   "rewards": {
+    "xp": 90,
+    "gold": 30
+   }
+  },
+  {
+   "id": "q7_lair",
+   "name": "Stage 7: The Mountain Lair",
+   "steps": [
+    {
+     "objective": {
+      "type": "reach_area",
+      "target": "c9_-9"
+     },
+     "desc": "Climb the volcano to Kong's lair"
+    }
+   ],
+   "rewards": {
+    "xp": 120,
+    "gold": 40
+   }
+  },
+  {
+   "id": "q8_ann",
+   "name": "Stage 8: Rescue Ann",
+   "steps": [
+    {
+     "objective": {
+      "type": "talk_to",
+      "target": "ann"
+     },
+     "desc": "Find Ann by the giant nest"
+    }
+   ],
+   "rewards": {
+    "xp": 100,
+    "gold": 30
+   }
+  },
+  {
+   "id": "q9_kong",
+   "name": "Final Stage: King Kong",
+   "steps": [
+    {
+     "objective": {
+      "type": "kill_count",
+      "target": "kong",
+      "count": 1
+     },
+     "desc": "Defeat King Kong"
+    }
+   ],
+   "rewards": {
+    "xp": 400,
+    "gold": 200
+   }
+  }
+ ]
+}
