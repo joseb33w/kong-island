@@ -95,15 +95,28 @@ func setup(p: Node3D, model: Node, w: Node, index := 0, total := 1, etype := "sk
 		# scale-normalize (#6): cap a giant Meshy enemy so it can't fill the screen when it attacks.
 		# Only shrinks models taller than MAX_ENEMY_H, then re-grounds the feet — normal enemies untouched.
 		if model is Node3D:
-			var mab := _model_aabb(model as Node3D)
-			if absf(mab.size.y - max_h) > 0.01 and mab.size.y > 0.01 and (mab.size.y > max_h or max_h > MAX_ENEMY_H):
+			var m3 := model as Node3D
+			# SKINNING-AWARE height: a Meshy rig parks its skinned mesh under a 0.01-scale Armature,
+			# so the merged mesh AABB under-measures (~0.02m) and the boss branch over-scaled the root
+			# ~550x (Kong rendered as an invisible ~1000m sky-colossus). Measure a RIGGED model from
+			# its skeleton's global-rest bone span x cumulative node scale (main.gd _char_height
+			# idiom); unrigged models keep the mesh AABB.
+			var rig_h := _char_height(m3)
+			var mh := rig_h
+			var mab := _model_aabb(m3)
+			if mh <= 0.05:
+				mh = mab.size.y
+			if absf(mh - max_h) > 0.01 and mh > 0.01 and (mh > max_h or max_h > MAX_ENEMY_H):
 				# normal enemies: shrink-only to the cap. A cell that AUTHORED a bigger enemy_height
 				# (a boss) is scaled TO that height, up or down, so Kong is colossal by data.
-				var m3 := model as Node3D
-				m3.scale *= max_h / mab.size.y
-				mab = _model_aabb(m3)
-				m3.position.y -= mab.position.y   # re-ground the shrunk model's base to the origin
-			body_h = clampf(mab.size.y, 0.8, max_h)
+				m3.scale *= max_h / mh
+				if rig_h <= 0.05:
+					# mesh-AABB re-ground is only trustworthy for UNRIGGED models; rigged Meshy
+					# characters keep their feet-at-origin convention (the AABB is the wrong frame).
+					mab = _model_aabb(m3)
+					m3.position.y -= mab.position.y
+				mh = max_h
+			body_h = clampf(mh, 0.8, max_h)
 		anim = _find_anim(model)
 		if anim == null and model is Node3D:
 			# Streamed KayKit skeletons ship with NO embedded clips — retarget from
@@ -287,6 +300,31 @@ func _face(dir: Vector3) -> void:
 func set_camera_near(cam_dist: float) -> void:
 	if mesh_root != null and is_instance_valid(mesh_root):
 		mesh_root.visible = cam_dist > maxf(CAM_FADE_NEAR, 0.45 * body_h)
+
+
+# Height of a RIGGED model = its skeleton's global-rest bone span scaled by the cumulative node
+# scale up to `node` (Meshy: cm-unit bones under a 0.01 Armature -> real metres). 0.0 = no rig.
+func _char_height(node: Node3D) -> float:
+	var sks := node.find_children("*", "Skeleton3D", true, false)
+	if sks.is_empty():
+		return 0.0
+	var s := sks[0] as Skeleton3D
+	if s.get_bone_count() == 0:
+		return 0.0
+	var lo := 1e9
+	var hi := -1e9
+	for i in s.get_bone_count():
+		var gy := s.get_bone_global_rest(i).origin.y
+		lo = minf(lo, gy)
+		hi = maxf(hi, gy)
+	if hi <= lo:
+		return 0.0
+	var sc := 1.0
+	var walker: Node = s
+	while walker != null and walker != node and walker is Node3D:
+		sc *= (walker as Node3D).scale.y
+		walker = walker.get_parent()
+	return (hi - lo) * sc
 
 
 # Local-frame merged mesh bounds of a subtree (scale/ground decisions at setup, before the model

@@ -837,6 +837,12 @@ func _sync_equip_visual() -> void:
 
 func _on_rpg_changed() -> void:
 	if rpg != null and _equipped_visual_id != rpg.equipped_weapon:
+		# a newly equipped weapon DRAWS immediately (found in a chest / cycled on the HUD) —
+		# equipping into a sheathed hand read as "weapons don't equip". Vehicle stow is kept.
+		if _weapon_stowed and (active_vehicle == null or not is_instance_valid(active_vehicle)):
+			_set_weapon_stowed(false)
+			if _weapon_btn != null and is_instance_valid(_weapon_btn):
+				_weapon_btn.text = "SHEATHE"
 		_sync_equip_visual()   # fire-and-forget — the latch + loop absorb re-entry
 
 
@@ -1163,6 +1169,11 @@ func _input(event: InputEvent) -> void:
 	var half := get_viewport().get_visible_rect().size.x * 0.5
 	if event is InputEventScreenTouch:
 		if event.pressed:
+			# _input runs BEFORE the GUI hit-tests, so an unguarded claim here turned every HUD
+			# button press-and-slide into a camera orbit (and joystick-zone buttons into movement).
+			# A touch that lands on a visible HUD button belongs to the button — don't claim it.
+			if _touch_on_hud(event.position):
+				return
 			if event.position.x < half and move_idx == -1:
 				move_idx = event.index
 				move_origin = event.position
@@ -1186,6 +1197,16 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseMotion and (event.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0 and move_idx == -1 and look_idx == -1:
 		# desktop drag-look (no active touches → ignores emulated-from-touch motion)
 		_apply_look(event.relative)
+
+
+func _touch_on_hud(p: Vector2) -> bool:
+	if hud_layer == null:
+		return false
+	for k in _hud_btns:
+		var b: Button = _hud_btns[k]
+		if b != null and is_instance_valid(b) and b.visible and Rect2(b.position, b.size).has_point(p):
+			return true
+	return false
 
 
 func _apply_look(d: Vector2) -> void:
@@ -1901,6 +1922,12 @@ func _build_hud() -> void:
 		func() -> void:
 			if director != null:
 				director.toggle_stable_panel())
+	# WEAPON cycle: swap between every weapon found so far (force-equip -> auto-draw). Without it a
+	# picked-up spear/rifle/tommy gun was stuck behind the auto-equip gate with no way to select it.
+	_hud_btns["cycle"] = _button("WEAPON >", Vector2(vp.x - 250, 158), Vector2(220, 90),
+		func() -> void:
+			if rpg != null and rpg.cycle_weapon():
+				AudioManager.play_sfx("pickup"))
 	_relayout_ui()
 
 
@@ -1929,8 +1956,12 @@ func _relayout_ui() -> void:
 		return
 	var vp := get_viewport().get_visible_rect().size
 	var bw := clampf(vp.x * 0.28, 150.0, 230.0)         # button width scales with the screen
-	var bh := clampf(vp.y * 0.13, 84.0, 130.0)
 	var m := 18.0
+	# the two-column block must live ENTIRELY in the right half — the left half is the movement
+	# joystick zone, and a POTION/WEAPON/DISMOUNT column that crossed the half-line ate joystick
+	# touches (and vice versa) in portrait.
+	bw = minf(bw, (vp.x * 0.5 - 3.0 * m) * 0.5)
+	var bh := clampf(vp.y * 0.13, 84.0, 130.0)
 	for k in _hud_btns:
 		var b: Button = _hud_btns[k]
 		if b == null or not is_instance_valid(b):
@@ -1942,8 +1973,13 @@ func _relayout_ui() -> void:
 	(_hud_btns["potion"] as Button).position = Vector2(vp.x - 2.0 * bw - 2.0 * m, vp.y - bh - m - 40.0)
 	(_hud_btns["dismount"] as Button).position = Vector2(vp.x - 2.0 * bw - 2.0 * m, vp.y - 3.0 * bh - 3.0 * m - 40.0)
 	(_hud_btns["weapon"] as Button).position = Vector2(vp.x - 2.0 * bw - 2.0 * m, vp.y - 2.0 * bh - 2.0 * m - 40.0)
-	(_hud_btns["stable"] as Button).position = Vector2(vp.x - bw - m, 158.0)   # below the stats block
-	(_hud_btns["stable"] as Button).size = Vector2(bw, clampf(bh * 0.6, 54.0, 78.0))
+	var stable_btn := _hud_btns["stable"] as Button
+	stable_btn.position = Vector2(vp.x - bw - m, 158.0)   # below the stats block
+	stable_btn.size = Vector2(bw, clampf(bh * 0.6, 54.0, 78.0))
+	var cyc := _hud_btns["cycle"] as Button
+	cyc.size = Vector2(bw, clampf(bh * 0.6, 54.0, 78.0))
+	# top-right, in the stable slot when the stable is hidden (this game), stacked under it otherwise
+	cyc.position = Vector2(vp.x - bw - m, 158.0 + ((stable_btn.size.y + 12.0) if stable_btn.visible else 0.0))
 
 
 func _button(text: String, pos: Vector2, sz: Vector2, cb: Callable) -> Button:

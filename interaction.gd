@@ -171,7 +171,7 @@ func add_door(pos: Vector3, facing: float, lock: String, label: String, parent: 
 	cs.position = Vector3(1.1, 1.5, 0.0)
 	body.add_child(cs)
 	pivot.add_child(body)
-	items.append({kind = "door", pos = pos, label = label, lock = lock,
+	items.append({kind = "door", pos = pos, label = label, lock = lock, facing = facing,
 		pivot = pivot, shape = cs, open = false, cell = cell_key})
 
 
@@ -387,7 +387,7 @@ func _open_chest(it: Dictionary) -> void:
 		rpg.add_item(entry)
 		got.append(rpg.item_name(entry))
 		if rpg.item_type(entry) == "weapon":
-			rpg.equip(entry)
+			rpg.equip(entry, true)   # a found weapon always equips + draws — the player just picked it up to try it
 	if it.gold > 0:
 		rpg.add_gold(it.gold)
 		got.append("%d gold" % it.gold)
@@ -407,11 +407,17 @@ func _use_seam(it: Dictionary) -> void:
 func _open_door(it: Dictionary) -> void:
 	if it.get("open", false):
 		return
-	# locked door: needs the item key OR a quest flag (same rule as a seam lock)
+	# locked door: needs the item key OR a quest flag (same rule as a seam lock) — but the lock is
+	# ONE-WAY: it bars entry only from the door's FRONT (+Z after facing) side. From the far
+	# (inland) side the bar lifts by hand, so a keyless player who got behind the wall some other
+	# way (boat, fall, respawn) is never permanently trapped.
 	if it.lock != "" and not rpg.has_item(it.lock) and not rpg.has_flag(it.lock):
-		var need := rpg.item_name(it.lock) if rpg.ITEMS.has(it.lock) else "a key"
-		_show(["The door is locked.", "You need " + need + "."])
-		return
+		var fwd := Vector3(sin(deg_to_rad(float(it.get("facing", 0.0)))), 0.0, cos(deg_to_rad(float(it.get("facing", 0.0)))))
+		var from_front: bool = (player.global_position - (it.pos as Vector3)).dot(fwd) >= 0.0
+		if from_front:
+			var need := rpg.item_name(it.lock) if rpg.ITEMS.has(it.lock) else "a key"
+			_show(["The door is locked.", "You need " + need + "."])
+			return
 	it.open = true
 	AudioManager.play_sfx("door")
 	if is_instance_valid(it.shape):

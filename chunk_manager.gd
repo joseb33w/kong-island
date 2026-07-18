@@ -1499,7 +1499,15 @@ func _place_ladder(root: Node, ref: Dictionary, centre: Vector3, half: float, ce
 	if interaction != null:
 		# outward step-off = the ladder's local +Z after yaw (rot=0 -> +Z); the player steps forward
 		# onto the surface here at the top of the climb.
-		interaction.add_ladder(node.position, height, Vector3(sin(yaw), 0.0, cos(yaw)), node, cell_key)
+		var anchor := node.position
+		var top_y := node.position.y + height
+		# A gorge-escape ladder's foot can rest metres below the water line — a swimmer grabs it at
+		# the SURFACE, so the USE anchor rides the water level (a foot anchor ~13m underwater sat
+		# outside the floating player's USE range: the escape was dead). The climb still tops out
+		# at the ladder's real top.
+		if water_cfg != null and anchor.y < water_level - 0.5:
+			anchor.y = water_level
+		interaction.add_ladder(anchor, maxf(1.0, top_y - anchor.y), Vector3(sin(yaw), 0.0, cos(yaw)), node, cell_key)
 	return true
 
 
@@ -2067,7 +2075,6 @@ func _place_bridge(root: Node3D, spec: Dictionary, centre: Vector3, half: float)
 	var b := centre + Vector3(clampf(b2.x, -half * 2.0, half * 2.0), 0.0, clampf(b2.y, -half * 2.0, half * 2.0))
 	a.y = _ground_y(a.x, a.z)
 	b.y = _ground_y(b.x, b.z)
-	var deck_y := maxf(a.y, b.y) + 0.15
 	var span := Vector2(b.x - a.x, b.z - a.z).length()
 	if span < 2.0:
 		return
@@ -2079,35 +2086,56 @@ func _place_bridge(root: Node3D, spec: Dictionary, centre: Vector3, half: float)
 	root.add_child(rig)
 	rig.global_position = Vector3((a.x + b.x) * 0.5, 0.0, (a.z + b.z) * 0.5)
 	rig.rotation.y = yaw
+	# Deck line: PITCHED between the two rim heights (+0.15 proud) with a light catenary sag, so
+	# NEITHER end has a floating step (the old flat maxf(a.y,b.y) deck hovered over the lower rim).
+	# rig-local -Z end = a, +Z end = b (yaw maps local +Z onto the a->b direction).
+	var ya := a.y + 0.15
+	var yb := b.y + 0.15
 	for i in range(n):
 		var t := (float(i) + 0.5) / float(n)
-		var sag := sin(t * PI) * -0.55   # gentle catenary dip
+		var sag := sin(t * PI) * -0.18
 		var plank := MeshInstance3D.new()
 		var bm := BoxMesh.new()
 		bm.size = Vector3(2.2, 0.14, span / float(n) * 0.86)
 		plank.mesh = bm
 		plank.material_override = wood
 		rig.add_child(plank)
-		plank.position = Vector3(0.0, deck_y + sag, -span * 0.5 + t * span)
+		plank.position = Vector3(0.0, lerpf(ya, yb, t) + sag, -span * 0.5 + t * span)
 		plank.rotation.y = randf_range(-0.05, 0.05)
-	# ONE walkable collider strip along the whole deck (slightly below the sagged planks' tops)
+	# ONE walkable collider strip along the WHOLE deck, pitched with it, top just below the plank
+	# tops — the player walks the deck end-to-end (no mid-deck lip; _step_up_assist mounts the ends).
+	var pitch := atan2(yb - ya, span)
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	var cs := CollisionShape3D.new()
 	var bx := BoxShape3D.new()
-	bx.size = Vector3(2.2, 0.3, span)
+	bx.size = Vector3(2.2, 0.3, span / cos(pitch) + 0.6)
 	cs.shape = bx
 	body.add_child(cs)
 	rig.add_child(body)
-	body.position = Vector3(0.0, deck_y - 0.35, 0.0)
+	body.position = Vector3(0.0, (ya + yb) * 0.5 - 0.15, 0.0)
+	body.rotation.x = -pitch
+	# rail COLLIDERS: sidling along the deck must never drop the player into the gorge — the rope
+	# visuals below are walk-through, so each side gets a thin invisible barrier the full span.
+	for side in [-1.0, 1.0]:
+		var rail := StaticBody3D.new()
+		rail.collision_layer = 1
+		var rcs := CollisionShape3D.new()
+		var rbx := BoxShape3D.new()
+		rbx.size = Vector3(0.14, 1.3, span / cos(pitch) + 0.6)
+		rcs.shape = rbx
+		rail.add_child(rcs)
+		rig.add_child(rail)
+		rail.position = Vector3(side * 1.18, (ya + yb) * 0.5 + 0.55, 0.0)
+		rail.rotation.x = -pitch
 	# rope handrails: segmented thin cylinders following the sag, plus end posts
 	for side in [-1.0, 1.0]:
 		var segs := 8
 		for i in range(segs):
 			var t0 := float(i) / float(segs)
 			var t1 := float(i + 1) / float(segs)
-			var p0 := Vector3(side * 1.05, deck_y + 1.0 + sin(t0 * PI) * -0.4, -span * 0.5 + t0 * span)
-			var p1 := Vector3(side * 1.05, deck_y + 1.0 + sin(t1 * PI) * -0.4, -span * 0.5 + t1 * span)
+			var p0 := Vector3(side * 1.05, lerpf(ya, yb, t0) + 1.0 + sin(t0 * PI) * -0.4, -span * 0.5 + t0 * span)
+			var p1 := Vector3(side * 1.05, lerpf(ya, yb, t1) + 1.0 + sin(t1 * PI) * -0.4, -span * 0.5 + t1 * span)
 			var seg := MeshInstance3D.new()
 			var cyl := CylinderMesh.new()
 			cyl.top_radius = 0.035
@@ -2131,7 +2159,7 @@ func _place_bridge(root: Node3D, spec: Dictionary, centre: Vector3, half: float)
 			post.mesh = pc
 			post.material_override = wood
 			rig.add_child(post)
-			post.position = Vector3(side * 1.05, deck_y + 0.7, e * (span * 0.5 - 0.2))
+			post.position = Vector3(side * 1.05, (ya if e < 0.0 else yb) + 0.7, e * (span * 0.5 - 0.2))
 
 
 func _place_mood(root: Node3D, mood: String, centre: Vector3, half: float) -> void:

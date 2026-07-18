@@ -85,6 +85,8 @@ func _complete(id: String) -> void:
 
 
 func current_objective() -> String:
+	# Prefer the ACTIVE quest: the old single pass returned the FIRST quest's label, so once
+	# quest 1 finished the HUD was pinned to its "COMPLETE" line and never showed the live objective.
 	for id in defs:
 		if st[id].status == "active":
 			var parts: Array = []
@@ -92,6 +94,8 @@ func current_objective() -> String:
 				var mark := "[x] " if _step_done(id, step.get("objective", {})) else "[ ] "
 				parts.append(mark + str(step.get("desc", "")))
 			return "QUEST: " + str(defs[id].get("name", id)) + " - " + " / ".join(parts)
-		elif st[id].status == "done":
-			return "QUEST: " + str(defs[id].get("name", id)) + " - COMPLETE"
-	return ""
+	var last_done := ""
+	for id in defs:
+		if st[id].status == "done":
+			last_done = "QUEST: " + str(defs[id].get("name", id)) + " - COMPLETE"
+	return last_done

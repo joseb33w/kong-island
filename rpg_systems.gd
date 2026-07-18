@@ -154,13 +154,31 @@ func consume_item(id: String) -> bool:
 func equip(id: String, force := false) -> bool:
 	if id in inventory and item_type(id) == "weapon":
 		if not force and equipped_weapon != "" and id != equipped_weapon:
-			var cur := float(weapon_def(equipped_weapon).get("damage", WPN_DEFAULT_DAMAGE))
-			if float(weapon_def(id).get("damage", WPN_DEFAULT_DAMAGE)) <= cur:
+			# gate on DPS (damage x rate), not raw per-hit damage — raw damage never let a fast
+			# weapon (tommy gun: 15 dmg x 5/s = 75 DPS) replace a slow heavy one (machete: 26 x 1.6).
+			var cd := weapon_def(equipped_weapon)
+			var nd := weapon_def(id)
+			var cur := float(cd.get("damage", WPN_DEFAULT_DAMAGE)) * float(cd.get("rate", WPN_DEFAULT_RATE))
+			if float(nd.get("damage", WPN_DEFAULT_DAMAGE)) * float(nd.get("rate", WPN_DEFAULT_RATE)) <= cur:
 				return false
 		equipped_weapon = id
 		changed.emit()
 		return true
 	return false
+
+
+## Deliberate swap (the HUD WEAPON button): equip the NEXT owned weapon, force — the player's
+## explicit choice always wins over the DPS gate.
+func cycle_weapon() -> bool:
+	var owned: Array = []
+	for id in inventory:
+		var sid := String(id)
+		if item_type(sid) == "weapon" and not owned.has(sid):
+			owned.append(sid)
+	if owned.is_empty():
+		return false
+	var i := owned.find(equipped_weapon)
+	return equip(owned[(i + 1) % owned.size()], true)
 
 
 func use_potion() -> bool:
